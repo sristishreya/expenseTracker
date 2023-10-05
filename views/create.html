@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Expense Tracker</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 0;
+        }
+
+        h1 {
+            text-align: center;
+            color: #0073e6;
+            margin-top: 20px;
+        }
+
+        .form {
+            max-width: 400px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+
+        input[type="text"], select {
+            width: calc(100% - 20px);
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+        }
+
+        button[type="submit"], button {
+            background-color: #0073e6;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            border-radius: 3px;
+        }
+         input[type="number"], select {
+        width: calc(100% - 20px); 
+        padding: 10px;
+        margin-bottom: 15px;
+        border: 1px solid #ccc;
+        border-radius: 3px;
+    } 
+    
+
+        button[type="submit"]:hover, button:hover {
+            background-color: #005bbf;
+        }
+
+        h2 {
+            text-align: center;
+            color: #0073e6;
+            margin-top: 20px;
+        }
+
+        ul#expenseList {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        ul#expenseList li {
+        background-color: #ffffff;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+            display: flex;
+        justify-content: center;
+        align-items: center;
+        }
+
+        ul#expenseList button {
+            
+            background-color: #e60000;
+            color: #fff;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+            margin-left: 5px;
+            border-radius: 3px;
+            
+        }
+
+        ul#expenseList button:hover {
+            background-color: #cc0000;
+        }
+    </style>
+</head>
+<body>
+    <h1>Expense Tracker</h1>
+    <div class="form">
+        <form id="expenseForm">
+            <label for="amount">Amount:</label>
+            <input type="number" id="amount" name="amount" required><br>
+            <label for="description">Description:</label>
+            <input type="text" id="description" name="description" required><br>
+            <label for="category">Category:</label>
+            <select id="category" name="category" required>
+                <option value="movie">Movie</option>
+                <option value="food">Food</option>
+                <option value="shopping">Shopping</option>
+            </select><br>
+            <button type="submit">Add Expense</button>
+        </form>
+    </div>
+
+    <h2>Expenses</h2>
+    <ul id="expenseList"></ul>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+        const expenseForm = document.getElementById('expenseForm');
+        const expenseList = document.getElementById('expenseList');
+        let editExpenseId = null;
+
+        expenseForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const formData = new FormData(expenseForm);
+
+            const createOrUpdateExpense = (editExpenseId) => {
+                return new Promise((resolve, reject) => {
+                    if (editExpenseId) {
+                        axios.put(`/api/expense/${editExpenseId}`, Object.fromEntries(formData))
+                            .then(() => {
+                                console.log(`Expense with ID ${editExpenseId} updated`);
+                                resolve();
+                            })
+                            .catch((error) => {
+                                console.error('Error updating expense:', error);
+                                reject(error);
+                            });
+                    } else {
+                        axios.post('/api/expense', Object.fromEntries(formData))
+                            .then(() => {
+                                console.log('Expense created');
+                                resolve();
+                            })
+                            .catch((error) => {
+                                console.error('Error creating expense:', error);
+                                reject(error);
+                            });
+                    }
+                });
+            };
+
+            createOrUpdateExpense(editExpenseId)
+                .then(() => {
+                    expenseForm.reset();
+                    editExpenseId = null;
+                    return refreshExpenseList();
+                })
+                .catch((error) => {
+                    console.error(error);
+                });
+        });
+
+        function refreshExpenseList() {
+            return new Promise((resolve, reject) => {
+                axios.get('/api/expense')
+                    .then((response) => {
+                        const expenses = response.data;
+                        expenseList.innerHTML = '';
+
+                        expenses.forEach((expense, index) => {
+                            const listItem = document.createElement('li');
+                            listItem.innerHTML = `
+                                ${expense.amount} ${expense.description} ${expense.category}
+                                <button onclick="editExpense('${expense.id}')">Edit</button>
+                                <button onclick="deleteExpense('${expense.id}')">Delete</button>`;
+                            expenseList.appendChild(listItem);
+                        });
+
+                        resolve();
+                    })
+                    .catch((error) => {
+                        console.error('Error fetching expense list:', error);
+                        reject(error);
+                    });
+            });
+        }
+
+        function deleteExpense(expenseId) {
+            return new Promise((resolve, reject) => {
+                axios.delete(`/api/expense/${expenseId}`)
+                    .then(() => {
+                        console.log(`Expense with ID ${expenseId} deleted`);
+                        return refreshExpenseList();
+                    })
+                    .catch((error) => {
+                        console.error(`Error deleting expense with ID ${expenseId}:`, error);
+                        reject(error);
+                    });
+            });
+        }
+
+        function editExpense(expenseId) {
+            return new Promise((resolve, reject) => {
+                axios.get(`/api/expense/${expenseId}`)
+                    .then((response) => {
+                        const expense = response.data;
+                        document.getElementById('amount').value = expense.amount;
+                        document.getElementById('description').value = expense.description;
+                        document.getElementById('category').value = expense.category;
+
+                        editExpenseId = expenseId;
+                        resolve();
+                    })
+                    .catch((error) => {
+                        console.error(`Error fetching expense with ID ${expenseId} for editing:`, error);
+                        reject(error);
+                    });
+            });
+        }
+
+        refreshExpenseList()
+            .catch((error) => {
+                console.error(error);
+            });
+    </script>
+</body>
+</html>
